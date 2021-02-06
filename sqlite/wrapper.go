@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"database/sql"
-	"embed"
 	"fmt"
 	"io/fs"
 	"os"
@@ -17,7 +16,7 @@ import (
 
 // InitDB opens and initalises an SQLite3 DB with all
 // correct settings.
-func InitDB(dsn string, migrations embed.FS) (db *sql.DB, err error) {
+func InitDB(dsn string, migrations fs.FS) (db *sql.DB, err error) {
 	// ensure a DSN is set before attempting to open the database
 	if dsn == "" {
 		log.L.Error("the database DSN must be specified")
@@ -65,13 +64,13 @@ func InitDB(dsn string, migrations embed.FS) (db *sql.DB, err error) {
 
 // migrate sets up migration tracking and executes pending migration files.
 //
-// Migration files are embedded in the sqlite/migration folder and are executed
-// in lexigraphical order.
+// Migration files can be on disk or embedded in the executable. This function
+// gets a list and sorts it so that they are executed in lexigraphical order.
 //
 // Once a migration is run, its name is stored in the 'migrations' table so it
 // is not re-executed. Migrations run in a transaction to prevent partial
 // migrations.
-func migrate(db *sql.DB, migrations embed.FS) error {
+func migrate(db *sql.DB, migrations fs.FS) error {
 	log.L.Debug("applying migrations...")
 
 	// ensure the 'migrations' table exists so we don't duplicate migrations.
@@ -102,7 +101,7 @@ func migrate(db *sql.DB, migrations embed.FS) error {
 
 // migrate runs a single migration file within a transaction; on success, the
 // migration file name is saved to the "migrations" table to prevent re-running.
-func migrateFile(db *sql.DB, migrations embed.FS, name string) error {
+func migrateFile(db *sql.DB, migrations fs.FS, name string) error {
 	log.L.Debug("applying migration file", zap.String("name", name))
 	tx, err := db.Begin()
 	if err != nil {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 
 	"github.com/dihedron/sqlite/log"
@@ -14,7 +15,14 @@ func main() {
 
 	defer log.L.Sync()
 
-	db, err := sqlite.InitDB("database/sqlite3.db", migrations.Migrations)
+	var scripts fs.FS
+	if len(os.Args) == 1 {
+		scripts = migrations.Migrations
+	} else {
+		scripts = os.DirFS(os.Args[1])
+	}
+
+	db, err := sqlite.InitDB("database/sqlite3.db", scripts)
 	if err != nil {
 		log.L.Error("error opening database", zap.Error(err))
 		os.Exit(1)
