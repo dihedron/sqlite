@@ -15,12 +15,9 @@ import (
 	"go.uber.org/zap"
 )
 
-//go:embed migration/*.sql
-var migrationFS embed.FS
-
 // InitDB opens and initalises an SQLite3 DB with all
 // correct settings.
-func InitDB(dsn string) (db *sql.DB, err error) {
+func InitDB(dsn string, migrations embed.FS) (db *sql.DB, err error) {
 	// ensure a DSN is set before attempting to open the database
 	if dsn == "" {
 		log.L.Error("the database DSN must be specified")
@@ -58,7 +55,7 @@ func InitDB(dsn string) (db *sql.DB, err error) {
 	}
 
 	// apply migrations (if any)
-	if err = migrate(db); err != nil {
+	if err = migrate(db, migrations); err != nil {
 		log.L.Error("error applying migrations", zap.Error(err))
 		err = fmt.Errorf("migrate: %w", err)
 		return
@@ -74,7 +71,7 @@ func InitDB(dsn string) (db *sql.DB, err error) {
 // Once a migration is run, its name is stored in the 'migrations' table so it
 // is not re-executed. Migrations run in a transaction to prevent partial
 // migrations.
-func migrate(db *sql.DB) error {
+func migrate(db *sql.DB, migrations embed.FS) error {
 	log.L.Debug("applying migrations...")
 
 	// ensure the 'migrations' table exists so we don't duplicate migrations.
@@ -85,7 +82,7 @@ func migrate(db *sql.DB) error {
 
 	// read migration files from our embedded file system;
 	// this uses Go 1.16's 'embed' package.
-	names, err := fs.Glob(migrationFS, "migration/*.sql")
+	names, err := fs.Glob(migrations, "*.sql")
 	if err != nil {
 		log.L.Error("error getting list of migrations", zap.Error(err))
 		return err
@@ -94,7 +91,7 @@ func migrate(db *sql.DB) error {
 
 	// loop over all migration files and execute them in order
 	for _, name := range names {
-		if err := migrateFile(db, name); err != nil {
+		if err := migrateFile(db, migrations, name); err != nil {
 			log.L.Error("error applying migration file", zap.String("name", name), zap.Error(err))
 			return fmt.Errorf("migration error: name=%q err=%w", name, err)
 		}
@@ -105,7 +102,7 @@ func migrate(db *sql.DB) error {
 
 // migrate runs a single migration file within a transaction; on success, the
 // migration file name is saved to the "migrations" table to prevent re-running.
-func migrateFile(db *sql.DB, name string) error {
+func migrateFile(db *sql.DB, migrations embed.FS, name string) error {
 	log.L.Debug("applying migration file", zap.String("name", name))
 	tx, err := db.Begin()
 	if err != nil {
@@ -125,7 +122,7 @@ func migrateFile(db *sql.DB, name string) error {
 	}
 
 	// read and execute migration file
-	if buffer, err := fs.ReadFile(migrationFS, name); err != nil {
+	if buffer, err := fs.ReadFile(migrations, name); err != nil {
 		log.L.Error("error reading migration file", zap.String("name", name), zap.Error(err))
 		return err
 	} else if _, err := tx.Exec(string(buffer)); err != nil {

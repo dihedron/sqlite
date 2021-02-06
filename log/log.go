@@ -32,7 +32,7 @@ func init() {
 	configuration := zap.NewProductionConfig()
 	configuration.Encoding = "json" // or "console"
 	configuration.OutputPaths = []string{fmt.Sprintf("%s-%d.log", app, os.Getpid())}
-	configuration.ErrorOutputPaths = []string{app + ".log"}
+	// configuration.ErrorOutputPaths = []string{app + ".log"}
 	configuration.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	L, err = configuration.Build()
 	if err != nil {
